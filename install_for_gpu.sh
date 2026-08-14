@@ -23,6 +23,11 @@ DRY_RUN=false
 VERBOSE=false
 ACTION="detect"            # detect | mjlab | pytorch
 MJLAB_DIR=""               # default: script's own dir (set in main)
+# Large CUDA wheels (nvidia-*, torch+cu128) often exceed uv's 30s default when
+# many packages download in parallel. Override only if the user has not set them.
+: "${UV_HTTP_TIMEOUT:=300}"
+: "${UV_CONCURRENT_DOWNLOADS:=4}"
+export UV_HTTP_TIMEOUT UV_CONCURRENT_DOWNLOADS
 # PyTorch CUDA wheel indexes (only cu128 ships with mjlab; cu121/cu124 for
 # standalone PyTorch when the driver cannot do 12.x but can do 12.0/12.1).
 declare -A PT_INDEX=(
@@ -188,6 +193,7 @@ install_mjlab() {
     exit 3
   fi
   log "Installing mjlab with --extra $extra in $dir"
+  log "uv download: UV_HTTP_TIMEOUT=${UV_HTTP_TIMEOUT}s, concurrent=${UV_CONCURRENT_DOWNLOADS}"
   ( cd "$dir" && run uv sync --extra "$extra" )
   ok "mjlab ready. train with: cd $dir && uv run train Mjlab-Velocity-Flat-Unitree-G1 --env.scene.num-envs 1024"
 }
@@ -196,6 +202,7 @@ install_pytorch() {
   local wheel="$1"
   command -v uv >/dev/null || { err "uv not installed. install: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
   log "Installing PyTorch ($wheel) via uv pip"
+  log "uv download: UV_HTTP_TIMEOUT=${UV_HTTP_TIMEOUT}s, concurrent=${UV_CONCURRENT_DOWNLOADS}"
   run uv pip install torch torchvision --index-url "${PT_INDEX[$wheel]}"
   ok "PyTorch ($wheel) installed. verify: python -c 'import torch; print(torch.cuda.is_available())'"
 }
